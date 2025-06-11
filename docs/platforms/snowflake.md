@@ -148,3 +148,86 @@ name,networking_through,position,contact_date
 Y,LinkedIn,SDE,2024-01-01
 B,LinkedIn,SDE 2,2024-01-01
 ```
+
+### Key-based Authentication
+
+Snowflake currently supports both password-based authentication as well as key-based authentication. In order to use key-based 
+authentication, follow the following steps. 
+
+# Step-by-Step: Snowflake Key Pair Authentication
+
+## Step 1: Generate a Key Pair
+
+Open your terminal and run the following command to create a key pair. If you’re using a mac, openssl should be installed 
+by default so no additional setup is required.
+
+```bash
+openssl genrsa -out rsa_key.pem 2048
+```
+
+```bash
+openssl rsa -in rsa_key.pem -pubout -out rsa_key.pub
+```
+
+## 2. Extract Public Key in the Correct Format
+
+To use with Snowflake, extract the public key in base64 DER format:
+
+```bash
+openssl rsa -in rsa_key.pem -pubout -outform DER | openssl base64 -A
+```
+
+### 3. Set Public Key on Snowflake User
+
+Log into Snowflake as an admin, create a new worksheet and run the following command :
+
+```sql
+ALTER USER your_snowflake_username
+SET RSA_PUBLIC_KEY='your_base64_public_key_here';
+```
+
+For example:
+
+```sql
+ALTER USER JOHN_DOE
+SET RSA_PUBLIC_KEY='MIITIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3nD038XL7myESbMhTxzN
+af1dUU2jkfeJby5/l5rQ6gy5uivtdgysdACKuMWmahhmdT1x77lbHa6LxlIebeVN
+EJhOCg8wH0c2v+TvAcv9RQgvRy1Er2dz188ETExPhUfq7CJ3AqJ6RYiREPiE1iTE
+ikkTXt0Vq8m3tP/DbO45g5v43ZWvPyQ+MhvCN3mECRTwzE6uueA+QiK4K5jOn1R1
+CWsKDzzLUd3IvGnBoqoigOq5zQJfQN7ZaIOTYakab48oXi4iFZKBrhhGDw0Cnl+S
+olfm4uu+DshVbiR9gY4Xmh/KOX9fpLjUH6wCVfOgtOa3/gkFDJzrfwb+v8R27HJx
+rQIDAQAB';
+```
+
+### 4. Verify
+```sql
+DESC USER your_snowflake_username;
+```
+
+This will show a column named RSA_PUBLIC_KEY, and you should see your Base64 key there.
+
+Optionally if you want to verify that the key is set correctly, run:
+
+```bash
+openssl rsa -pubin -in rsa_key.pub -outform DER | openssl dgst -sha256 -binary | openssl enc -base64
+```
+
+The output should match the value in the RSA_PUBLIC_KEY_FP column in Snowflake in the same table where you just inspected
+RSA_PUBLIC_KEY.
+
+### 5. Update Bruin Configuration
+
+In your `.bruin.yml` file, update the Snowflake connection configuration to include the `private_key_path` parameter pointing 
+to your private key file. For example:
+
+```yaml
+            snowflake:
+                - name: snowflake-default
+                  username: JOHN_DOE
+                  account: EXAMPLE-ACCOUNT
+                  database: dev
+                  private_key_path: /Users/johndoe/rsa_key.pem
+```
+
+
+For more details on how to set up key-based authentication, see [this guide](https://select.dev/docs/snowflake-developer-guide/snowflake-key-pair).
